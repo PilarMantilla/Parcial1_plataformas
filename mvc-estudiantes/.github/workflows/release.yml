@@ -50,6 +50,19 @@ jobs:
       - name: Get version
         id: ver
         run: echo "version=$(./gradlew -q printVersion)" >> $GITHUB_OUTPUT
+        
+      # Crea el tag si no existe (evita fallar si repites merge sin cambiar versión)
+      - name: Create tag if missing
+        run: |
+          TAG="v${{ steps.ver.outputs.version }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists. Skipping tag creation."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
