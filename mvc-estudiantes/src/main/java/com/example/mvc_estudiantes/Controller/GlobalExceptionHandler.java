@@ -1,5 +1,6 @@
 package com.example.mvc_estudiantes.Controller;
 
+import com.example.mvc_estudiantes.Exception.EstudianteDuplicado;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -10,7 +11,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import com.example.mvc_estudiantes.Exception.EstudianteDuplicado;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -31,5 +33,3 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errors);
     }
 }
-
-
