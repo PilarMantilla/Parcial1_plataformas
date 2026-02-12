@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MVC Estudiantes</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; }
+    h1 { margin-bottom: 8px; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin: 12px 0; }
+    label { display: block; margin-top: 10px; font-weight: 600; }
+    input { width: 100%; padding: 10px; margin-top: 6px; box-sizing: border-box; }
+    button { margin-top: 12px; padding: 10px 14px; cursor: pointer; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+    th { background: #f7f7f7; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .msg { margin-top: 10px; padding: 10px; border-radius: 6px; }
+    .ok { background: #e8fff0; border: 1px solid #b7f0c8; }
+    .err { background: #ffecec; border: 1px solid #ffb9b9; }
+    .small { color: #666; font-size: 0.95em; }
+  </style>
+</head>
+
+<body>
+  <h1>Gestión de Estudiantes</h1>
+  <p class="small">Esta página la sirve Spring desde <code>src/main/resources/static</code>.</p>
+
+  <div class="card">
+    <h2>Crear estudiante</h2>
+
+    <div class="row">
+      <div>
+        <label for="id">ID (único)</label>
+        <input id="id" type="number" min="0" placeholder="Ej: 1" />
+      </div>
+      <div>
+        <label for="nombre">Nombre</label>
+        <input id="nombre" type="text" placeholder="Ej: Ana Pérez" />
+      </div>
+    </div>
+
+    <label for="carrera">Carrera</label>
+    <input id="carrera" type="text" placeholder="Ej: Ingeniería" />
+
+    <button id="btnCrear">Guardar</button>
+    <div id="msgCrear"></div>
+  </div>
+
+  <div class="card">
+    <h2>Lista de estudiantes</h2>
+    <button id="btnRecargar">Recargar</button>
+    <div id="msgLista"></div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Nombre</th>
+          <th>Carrera</th>
+        </tr>
+      </thead>
+      <tbody id="tablaBody"></tbody>
+    </table>
+  </div>
+
+  <script>
+    // Como el HTML lo sirve el mismo backend, llamamos al API con rutas relativas:
+    const BASE_URL = ""; // <-- importante: mismo host/puerto
+
+    const $ = (id) => document.getElementById(id);
+
+    function setMessage(el, text, type) {
+      if (!text) { el.innerHTML = ""; return; }
+      el.innerHTML = `<div class="msg ${type}">${text}</div>`;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    async function cargarLista() {
+      const msg = $("msgLista");
+      setMessage(msg, "Cargando...", "ok");
+
+      try {
+        const res = await fetch(`${BASE_URL}/estudiantes`);
+        if (!res.ok) throw new Error(`GET /estudiantes falló (${res.status})`);
+
+        const data = await res.json();
+        renderTabla(Array.isArray(data) ? data : []);
+        setMessage(msg, `Listo. Total: ${Array.isArray(data) ? data.length : 0}`, "ok");
+      } catch (e) {
+        setMessage(msg, `Error: ${escapeHtml(e.message)}`, "err");
+      }
+    }
+
+    function renderTabla(estudiantes) {
+      const body = $("tablaBody");
+      body.innerHTML = "";
+
+      if (estudiantes.length === 0) {
+        body.innerHTML = `<tr><td colspan="3">No hay estudiantes registrados.</td></tr>`;
+        return;
+      }
+
+      for (const e of estudiantes) {
+        body.innerHTML += `
+          <tr>
+            <td>${escapeHtml(e.id)}</td>
+            <td>${escapeHtml(e.nombre)}</td>
+            <td>${escapeHtml(e.carrera)}</td>
+          </tr>
+        `;
+      }
+    }
+
+    async function crearEstudiante() {
+      const msg = $("msgCrear");
+      setMessage(msg, "", "ok");
+
+      const idVal = $("id").value.trim();
+      const nombre = $("nombre").value.trim();
+      const carrera = $("carrera").value.trim();
+
+      if (!idVal || !nombre || !carrera) {
+        setMessage(msg, "Completa id, nombre y carrera.", "err");
+        return;
+      }
+
+      const payload = { id: Number(idVal), nombre, carrera };
+
+      try {
+        const res = await fetch(`${BASE_URL}/estudiantes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.status === 201) {
+          setMessage(msg, "✅ Estudiante creado (201 Created).", "ok");
+          $("id").value = "";
+          $("nombre").value = "";
+          $("carrera").value = "";
+          await cargarLista();
+          return;
+        }
+
+        let body = null;
+        try { body = await res.json(); } catch {}
+
+        if (res.status === 409) {
+          const m = body?.message ?? "ID duplicado.";
+          setMessage(msg, `❌ ${escapeHtml(m)} (409 Conflict)`, "err");
+          return;
+        }
+
+        if (res.status === 400) {
+          if (body && typeof body === "object") {
+            const detalles = Object.entries(body)
+              .map(([k, v]) => `<li><b>${escapeHtml(k)}:</b> ${escapeHtml(v)}</li>`)
+              .join("");
+            setMessage(msg, `❌ Validación (400):<ul>${detalles}</ul>`, "err");
+          } else {
+            setMessage(msg, "❌ Validación (400).", "err");
+          }
+          return;
+        }
+
+        throw new Error(`POST /estudiantes falló (${res.status})`);
+      } catch (e) {
+        setMessage(msg, `Error: ${escapeHtml(e.message)}`, "err");
+      }
+    }
+
+    $("btnRecargar").addEventListener("click", cargarLista);
+    $("btnCrear").addEventListener("click", crearEstudiante);
+
+    cargarLista();
+  </script>
+</body>
+</html>
